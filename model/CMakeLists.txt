@@ -5,7 +5,7 @@ project(model)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Eigen3 REQUIRED)
+set(EIGEN3_DIR "/opt/homebrew/include/eigen3")
 
 file(GLOB HEADERS "*.h")
 file(GLOB SOURCES "*.cc")
@@ -14,7 +14,5 @@ add_library(${PROJECT_NAME} ${HEADERS} ${SOURCES})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 
-target_link_libraries(${PROJECT_NAME} EIGEN3)
-
 target_include_directories(${PROJECT_NAME} INTERFACE "..")
-target_include_directories(${PROJECT_NAME} PRIVATE ${EIGEN3_INCLUDE_DIR})
+target_include_directories(${PROJECT_NAME} PUBLIC ${EIGEN3_DIR})
