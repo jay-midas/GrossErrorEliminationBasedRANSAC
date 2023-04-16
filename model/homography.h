@@ -8,7 +8,6 @@ class Homography {
 public:
     Homography();
     ~Homography();
-private:
     Eigen::MatrixXd mSymbol;
 };
 
