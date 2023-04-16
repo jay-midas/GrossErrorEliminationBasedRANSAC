@@ -4,12 +4,6 @@ namespace Model {
 
 HomographyEstimator::HomographyEstimator() = default;
 
-// TODO
-Homography HomographyEstimator::EstimatorModel(const Data::PointData &data) const {
-    
-    return Homography();
-}
-
 void HomographyEstimator::gaussElimination(
     Eigen::Matrix<double, 8, 9>& matrix_, // The matrix to which the elimination is applied
     Eigen::Matrix<double, 8, 1>& result_) const // The resulting null-space
@@ -54,18 +48,16 @@ void HomographyEstimator::gaussElimination(
     }
 }
 
-bool HomographyEstimator::estimateMinimalModel(
+std::optional<Homography> HomographyEstimator::estimateMinimalPointModel(
     const Data::PointData& data,
-    std::vector<Homography>& models_,
     const std::vector<double>& weights) const
 {
     constexpr size_t equation_number = 2;
-    const size_t sample_number_ = data.data.size();
+    assert(data.data.size() == 4);
+    assert(data.data.size() == weights.size());
     Eigen::Matrix<double, 8, 9> coefficients;
     size_t row_idx = 0;
-    assert(4 == sample_number_);
-    for (size_t i = 0; i < sample_number_; ++i)
-    {
+    for (size_t i = 0; i < data.data.size(); ++i) {
         const double weight = weights[i];
         const double
             & x1 = data.data[i].first.x,
@@ -110,30 +102,28 @@ bool HomographyEstimator::estimateMinimalModel(
         h);
 
     if (h.hasNaN())
-        return false;
+        return std::nullopt;
 
     Homography model;
     model.mSymbol << h(0), h(1), h(2),
         h(3), h(4), h(5),
         h(6), h(7), 1.0;
-    models_.emplace_back(model);
-    return true;
+    return model;
 }
 
-bool HomographyEstimator::estimateNonMinimalModel(
+std::optional<Homography> HomographyEstimator::estimateFullPointModel(
     const Data::PointData& data,
-    std::vector<Homography>& models_,
     const std::vector<double>& weights) const
 {
+    assert(weights.size() == data.data.size());
     constexpr size_t equation_number = 2;
-    const size_t sample_number_ = data.data.size();
-    const size_t row_number = equation_number * sample_number_;
+    const size_t row_number = equation_number * data.data.size();
     Eigen::MatrixXd coefficients(row_number, 8);
     Eigen::MatrixXd inhomogeneous(row_number, 1);
 
     size_t row_idx = 0;
 
-    for (size_t i = 0; i < sample_number_; ++i)
+    for (size_t i = 0; i < data.data.size(); ++i)
     {
         const double weight = weights[i];
         const double
@@ -178,8 +168,7 @@ bool HomographyEstimator::estimateNonMinimalModel(
     model.mSymbol << h(0), h(1), h(2),
         h(3), h(4), h(5),
         h(6), h(7), 1.0;
-    models_.emplace_back(model);
-    return true;
+    return model;
 }
 
 
