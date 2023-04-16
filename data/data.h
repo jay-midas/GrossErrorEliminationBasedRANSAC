@@ -1,5 +1,6 @@
 #pragma once
 
+#include <utility>
 #include <vector>
 
 namespace Data {
@@ -12,7 +13,7 @@ struct Point {
 class PointData {
 public:
     PointData();
-    std::vector<Point> data;
+    std::vector<std::pair<Point, Point>> data;
 };
 
 }
