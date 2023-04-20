@@ -8,9 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 file(GLOB HEADERS "*.h")
 file(GLOB SOURCES "*.cc")
 
-# add_library(${PROJECT_NAME} ${HEADERS} ${SOURCES})
+add_library(${PROJECT_NAME} ${HEADERS} ${SOURCES})
 
-add_executable(${PROJECT_NAME} ${HEADERS} ${SOURCES})
+# add_executable(${PROJECT_NAME} ${HEADERS} ${SOURCES})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 

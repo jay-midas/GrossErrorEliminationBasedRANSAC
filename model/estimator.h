@@ -4,6 +4,9 @@
 
 #include "homography.h"
 
+#include <iostream>
+#define de(x) std::cerr << #x << " is " << (x) << std::endl;
+
 namespace Model {
 
 class HomographyEstimator {
@@ -14,6 +17,10 @@ public:
         Eigen::Matrix<double, 8, 1>& result
     ) const;
     std::optional<Homography> estimateMinimalPointModel(
+        const Data::PointData& data,
+        const std::vector<double>& weights
+    ) const;
+    std::optional<Homography> estimateNonMinimalPointModel(
         const Data::PointData& data,
         const std::vector<double>& weights
     ) const;

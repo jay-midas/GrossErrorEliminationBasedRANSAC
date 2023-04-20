@@ -19,7 +19,9 @@ public:
     void sigmaConsensus(
         const Data::PointData& dataSet,
         const Model::Homography& model,
-        const Model::HomographyEstimator& estimator
+        const Model::HomographyEstimator& estimator,
+        Model::Homography& betterModel,
+        double& betterScore
     );
     void getModelQuality(
         const Data::PointData& dataSet,
@@ -31,6 +33,7 @@ public:
     uint64_t maxIteration;
     double maximum_threshold;
     double log_confidence;
+    uint32_t last_iteration_number;
 };
 
 }

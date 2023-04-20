@@ -1,18 +1,100 @@
 #include "estimator.h"
 
+
 namespace Model {
 
+bool normalizePoints(
+        const Data::PointData &data, 
+        Data::PointData& dstData,
+        Eigen::Matrix3d &normalizing_transform_source_, 
+        Eigen::Matrix3d &normalizing_transform_destination_) 
+    {
+        const size_t cols = data.data.size();
+        double mass_point_src[2], 
+            mass_point_dst[2];
+
+        mass_point_src[0] =
+            mass_point_src[1] =
+            mass_point_dst[0] =
+            mass_point_dst[1] =
+            0.0;
+
+        for (const auto& [lhs, rhs] : data.data)
+        {
+            mass_point_src[0] += lhs.x;
+            mass_point_src[1] += lhs.y;
+            mass_point_dst[0] += rhs.x;
+            mass_point_dst[1] += rhs.y;
+        }
+
+        mass_point_src[0] /= data.data.size();
+        mass_point_src[1] /= data.data.size();
+        mass_point_dst[0] /= data.data.size();
+        mass_point_dst[1] /= data.data.size();
+
+        double average_distance_src = 0.0,
+            average_distance_dst = 0.0;
+        for (const auto& [lhs, rhs] : data.data)
+        {
+            const double &x1 = lhs.x;
+            const double &y1 = lhs.y;
+            const double &x2 = rhs.x;
+            const double &y2 = rhs.y;
+
+            const double dx1 = mass_point_src[0] - x1;
+            const double dy1 = mass_point_src[1] - y1;
+            const double dx2 = mass_point_dst[0] - x2;
+            const double dy2 = mass_point_dst[1] - y2;
+
+            average_distance_src += sqrt(dx1 * dx1 + dy1 * dy1);
+            average_distance_dst += sqrt(dx2 * dx2 + dy2 * dy2);
+        }
+
+        average_distance_src /= data.data.size();
+        average_distance_dst /= data.data.size();
+
+        const double ratio_src = M_SQRT2 / average_distance_src;
+        const double ratio_dst = M_SQRT2 / average_distance_dst;
+
+        dstData.data.clear();
+        for (const auto& [lhs, rhs] : data.data)
+        {
+            const double &x1 = lhs.x;
+            const double &y1 = lhs.y;
+            const double &x2 = rhs.x;
+            const double &y2 = rhs.y;
+
+            dstData.data.emplace_back(
+                Data::Point(
+                    (x1 - mass_point_src[0]) * ratio_src,
+                    (y1 - mass_point_src[1]) * ratio_src
+                ),
+                Data::Point(
+                (x2 - mass_point_dst[0]) * ratio_dst,
+                (y2 - mass_point_dst[1]) * ratio_dst
+                )
+            );
+        }
+
+        normalizing_transform_source_ << ratio_src, 0, -ratio_src * mass_point_src[0],
+            0, ratio_src, -ratio_src * mass_point_src[1],
+            0, 0, 1;
+
+        normalizing_transform_destination_ << ratio_dst, 0, -ratio_dst * mass_point_dst[0],
+            0, ratio_dst, -ratio_dst * mass_point_dst[1],
+            0, 0, 1;
+        return true;
+    }
 HomographyEstimator::HomographyEstimator() = default;
 
 void HomographyEstimator::gaussElimination(
-    Eigen::Matrix<double, 8, 9>& matrix_, // The matrix to which the elimination is applied
-    Eigen::Matrix<double, 8, 1>& result_) const // The resulting null-space
+    Eigen::Matrix<double, 8, 9>& matrix_, 
+    Eigen::Matrix<double, 8, 1>& result_) const
 {
     constexpr size_t _Size = 8;
     int i, j, k;
     double temp;
 
-    //Pivotisation
     for (i = 0; i < _Size; i++)                    
         for (k = i + 1; k < _Size; k++)
             if (abs(matrix_(i, i)) < abs(matrix_(k, i)))
@@ -22,28 +104,19 @@ void HomographyEstimator::gaussElimination(
                     matrix_(i, j) = matrix_(k, j);
                     matrix_(k, j) = temp;
                 }
-
-    //loop to perform the gauss elimination
     for (i = 0; i < _Size - 1; i++)            
         for (k = i + 1; k < _Size; k++)
         {
             double temp = matrix_(k, i) / matrix_(i, i);
             for (j = 0; j <= _Size; j++)
-                // make the elements below the pivot elements equal to zero or elimnate the variables
                 matrix_(k, j) = matrix_(k, j) - temp * matrix_(i, j);    
         }
-
-    //back-substitution
     for (i = _Size - 1; i >= 0; i--)                
     {                       
-        // result_ is an array whose values correspond to the values of x,y,z..
         result_(i) = matrix_(i, _Size);                
-        //make the variable to be calculated equal to the rhs of the last equation
         for (j = i + 1; j < _Size; j++)
             if (j != i)            
-                //then subtract all the lhs values except the coefficient of the variable whose value is being calculated
                 result_(i) = result_(i) - matrix_(i, j) * result_(j);
-        //now finally divide the rhs by the coefficient of the variable to be calculated
         result_(i) = result_(i) / matrix_(i, i);            
     }
 }
@@ -96,11 +169,9 @@ std::optional<Homography> HomographyEstimator::estimateMinimalPointModel(
     }
 
     Eigen::Matrix<double, 8, 1> h;
-
     gaussElimination(
         coefficients,
         h);
-
     if (h.hasNaN())
         return std::nullopt;
 
@@ -109,6 +180,29 @@ std::optional<Homography> HomographyEstimator::estimateMinimalPointModel(
         h(3), h(4), h(5),
         h(6), h(7), 1.0;
     return model;
+}
+
+std::optional<Homography> HomographyEstimator::estimateNonMinimalPointModel(
+    const Data::PointData &data, 
+    const std::vector<double> &weights
+) const {
+        Data::PointData dstData;
+        Eigen::Matrix3d normalizing_transform_source, normalizing_transform_destination;
+
+        if (!normalizePoints(data,
+            dstData,
+            normalizing_transform_source, 
+            normalizing_transform_destination))
+            return std::nullopt;
+        Model::Homography ret;
+        if (auto x = estimateFullPointModel(dstData, weights); x.has_value()) {
+            ret = x.value();
+        } else {
+            return std::nullopt;
+        }
+        const Eigen::Matrix3d normalizing_transform_destination_inverse = normalizing_transform_destination.inverse();
+        ret.mSymbol = normalizing_transform_destination_inverse * ret.mSymbol * normalizing_transform_source;
+        return ret;
 }
 
 std::optional<Homography> HomographyEstimator::estimateFullPointModel(
@@ -170,6 +264,4 @@ std::optional<Homography> HomographyEstimator::estimateFullPointModel(
         h(6), h(7), 1.0;
     return model;
 }
-
-
 }
